@@ -1,6 +1,7 @@
 # SERVICIO DE WINDOWS PARA SOLICITUD POST A APIREST LOCAL
 ### requisitos
 - Visual studio 2022 instalado
+- clonar repositorio en rama 'arreglo'
 ## - INSTALACIÓN
 
 en modo administrador abrir simbolo de sistema 'CMD', ir a la ruta:
