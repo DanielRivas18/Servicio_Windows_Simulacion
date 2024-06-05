@@ -1,27 +1,28 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
-using System.Diagnostics;
-using System.Linq;
-using System.Net.Http;
 using System.ServiceProcess;
+using System.Timers;
+using Npgsql; // Asegúrate de que esta línea está presente
+using Newtonsoft.Json;
+using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using System.Timers;
-using Newtonsoft.Json;
 
 namespace POST_SIMULACION
 {
     [RunInstaller(true)]
-
     public partial class Service1 : ServiceBase
     {
         private Timer timer;
-        private static readonly HttpClient client = new HttpClient();
+
         private Random random;
-        private const int maxStudentId = 2000;
-        private const int maxSubjectId = 49;
+        private static int maxStudentId;  // número de estudiantes
+        private static int maxSubjectId; // número de materias
+        private const double timeValue = 0.5; // segundos
+        private static readonly HttpClient client = new HttpClient();
+
+        // Ajusta este valor según sea necesario
+        private const string connectionString = "Host=localhost;Port=5432;Username=postgres;Password=root;Database=simulacion";
 
         public Service1()
         {
@@ -31,10 +32,39 @@ namespace POST_SIMULACION
         protected override void OnStart(string[] args)
         {
             random = new Random();
-           
-            timer = new Timer(10 * 10000); 
+            InitializeMaxValues();
+
+            timer = new Timer(timeValue * 1000);
             timer.Elapsed += OnTimerElapsed;
             timer.Start();
+        }
+
+        private void InitializeMaxValues()
+        {
+            using (var conn = new NpgsqlConnection(connectionString))
+            {
+                conn.Open();
+
+                using (var cmd = new NpgsqlCommand("SELECT COUNT(*) FROM students", conn))
+                {
+                    maxStudentId = Convert.ToInt32(cmd.ExecuteScalar());
+                }
+
+                using (var cmd = new NpgsqlCommand("SELECT COUNT(*) FROM subjects", conn))
+                {
+                    maxSubjectId = Convert.ToInt32(cmd.ExecuteScalar());
+                }
+            }
+        }
+
+        private int GetRandomSubjectId()
+        {
+            return random.Next(1, maxSubjectId + 1);
+        }
+
+        private int GetRandomStudentId()
+        {
+            return random.Next(1, maxStudentId + 1);
         }
 
         private void OnTimerElapsed(object sender, ElapsedEventArgs e)
@@ -47,22 +77,10 @@ namespace POST_SIMULACION
             var studentId = GetRandomStudentId();
             var subjectId = GetRandomSubjectId();
 
-            await EnrollStudentAsync(studentId, subjectId);
+            await Enrollment(studentId, subjectId);
         }
 
-        private int GetRandomSubjectId()
-        {
-           
-            return random.Next(1, maxSubjectId+1); 
-        }
-
-        private int GetRandomStudentId()
-        {
-          
-            return random.Next(1, maxStudentId+1); 
-        }
-
-        private async Task EnrollStudentAsync(int studentId, int subjectId)
+        private async Task Enrollment(int studentId, int subjectId)
         {
             var enrollment = new
             {
@@ -73,9 +91,7 @@ namespace POST_SIMULACION
             var json = JsonConvert.SerializeObject(enrollment);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await client.PostAsync("http://localhost:3000/enrollments", content);
-
-         
+            await client.PostAsync("http://localhost:3000/enrollments", content);
         }
 
         protected override void OnStop()
