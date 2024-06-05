@@ -14,15 +14,13 @@ namespace POST_SIMULACION
     public partial class Service1 : ServiceBase
     {
         private Timer timer;
-
         private Random random;
         private static int maxStudentId;  // número de estudiantes
         private static int maxSubjectId; // número de materias
-        private const double timeValue = 0.5; // segundos
+        private static double timeValue; // segundos
         private static readonly HttpClient client = new HttpClient();
 
-        
-        private const string connectionString = "Host=localhost;Port=5432;Username=postgres;Password=root;Database=simulacion";
+        private static string connectionString;
 
         public Service1()
         {
@@ -31,6 +29,21 @@ namespace POST_SIMULACION
 
         protected override void OnStart(string[] args)
         {
+
+            if (!double.TryParse(Environment.GetEnvironmentVariable("TIME_VALUE"), out timeValue))
+            {
+                timeValue = 0.5;
+            }
+
+
+            string host = Environment.GetEnvironmentVariable("PG_HOST") ?? "localhost";
+            string port = Environment.GetEnvironmentVariable("PG_PORT") ?? "5432";
+            string user = Environment.GetEnvironmentVariable("PG_USER") ?? "postgres";
+            string password = Environment.GetEnvironmentVariable("PG_PASSWORD") ?? "root";
+            string database = Environment.GetEnvironmentVariable("PG_DATABASE") ?? "simulacion";
+
+            connectionString = $"Host={host};Port={port};Username={user};Password={password};Database={database}";
+
             random = new Random();
             InitializeMaxValues();
 
