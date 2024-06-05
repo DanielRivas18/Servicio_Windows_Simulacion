@@ -12,3 +12,9 @@ compilar codigo en visual studio para obtener ruta del servicio y ejecutar en la
 
 `installutil.exe -i  //ruta-entregada-por-visual-studio-2022`
 
+### instalar npgsql
+
+ir a directorio de trabajo 
+
+Install-Package Npgsql
+
