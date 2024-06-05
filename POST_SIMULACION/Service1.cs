@@ -21,7 +21,7 @@ namespace POST_SIMULACION
         private const double timeValue = 0.5; // segundos
         private static readonly HttpClient client = new HttpClient();
 
-        // Ajusta este valor según sea necesario
+        
         private const string connectionString = "Host=localhost;Port=5432;Username=postgres;Password=root;Database=simulacion";
 
         public Service1()
