@@ -1,29 +1,26 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
-using System.Diagnostics;
-using System.Linq;
-using System.Net.Http;
 using System.ServiceProcess;
+using System.Timers;
+using Npgsql; // Asegúrate de que esta línea está presente
+using Newtonsoft.Json;
+using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using System.Timers;
-using Newtonsoft.Json;
 
 namespace POST_SIMULACION
 {
     [RunInstaller(true)]
-
     public partial class Service1 : ServiceBase
     {
         private Timer timer;
-        private static readonly HttpClient client = new HttpClient();
         private Random random;
-        private const int minStudentId = 1;  
-        private const int maxStudentId = 1000;  
-        private const int minSubjectId = 1;  
-        private const int maxSubjectId = 50;  
+        private static int maxStudentId;  // número de estudiantes
+        private static int maxSubjectId; // número de materias
+        private static double timeValue; // segundos
+        private static readonly HttpClient client = new HttpClient();
+
+        private static string connectionString;
 
         public Service1()
         {
@@ -32,11 +29,55 @@ namespace POST_SIMULACION
 
         protected override void OnStart(string[] args)
         {
+
+            if (!double.TryParse(Environment.GetEnvironmentVariable("TIME_VALUE"), out timeValue))
+            {
+                timeValue = 0.5;
+            }
+
+
+            string host = Environment.GetEnvironmentVariable("PG_HOST") ?? "localhost";
+            string port = Environment.GetEnvironmentVariable("PG_PORT") ?? "5432";
+            string user = Environment.GetEnvironmentVariable("PG_USER") ?? "postgres";
+            string password = Environment.GetEnvironmentVariable("PG_PASSWORD") ?? "root";
+            string database = Environment.GetEnvironmentVariable("PG_DATABASE") ?? "simulacion";
+
+            connectionString = $"Host={host};Port={port};Username={user};Password={password};Database={database}";
+
             random = new Random();
-            int tiempo = Settings1.Default.TIEMPO;
-            timer = new Timer(1000); // Configurar el temporizador para 1 minuto
+            InitializeMaxValues();
+
+            timer = new Timer(timeValue * 1000);
             timer.Elapsed += OnTimerElapsed;
             timer.Start();
+        }
+
+        private void InitializeMaxValues()
+        {
+            using (var conn = new NpgsqlConnection(connectionString))
+            {
+                conn.Open();
+
+                using (var cmd = new NpgsqlCommand("SELECT COUNT(*) FROM students", conn))
+                {
+                    maxStudentId = Convert.ToInt32(cmd.ExecuteScalar());
+                }
+
+                using (var cmd = new NpgsqlCommand("SELECT COUNT(*) FROM subjects", conn))
+                {
+                    maxSubjectId = Convert.ToInt32(cmd.ExecuteScalar());
+                }
+            }
+        }
+
+        private int GetRandomSubjectId()
+        {
+            return random.Next(1, maxSubjectId + 1);
+        }
+
+        private int GetRandomStudentId()
+        {
+            return random.Next(1, maxStudentId + 1);
         }
 
         private void OnTimerElapsed(object sender, ElapsedEventArgs e)
@@ -44,40 +85,15 @@ namespace POST_SIMULACION
             EnrollRandomStudent();
         }
 
-        private async void EnrollRandomStudent()
+        private async Task EnrollRandomStudent()
         {
-            var studentId = random.Next(minStudentId, maxStudentId + 1);
-            var subjectId = random.Next(minSubjectId, maxSubjectId + 1);
+            var studentId = GetRandomStudentId();
+            var subjectId = GetRandomSubjectId();
 
-            if (!await IsAlreadyEnrolled(studentId, subjectId))
-            {
-                await EnrollStudentAsync(studentId, subjectId);
-            }
+            await Enrollment(studentId, subjectId);
         }
 
-        private async Task<bool> IsAlreadyEnrolled(int studentId, int subjectId)
-        {
-            var enrollmentCheck = new
-            {
-                subject_id = subjectId,
-                student_id = studentId
-            };
-
-            var json = JsonConvert.SerializeObject(enrollmentCheck);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-            var response = await client.PostAsync("http://localhost:3000/enrollments", content);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadAsStringAsync();
-                return JsonConvert.DeserializeObject<CheckEnrollmentResponse>(result).IsEnrolled;
-            }
-
-            return false;
-        }
-
-        private async Task EnrollStudentAsync(int studentId, int subjectId)
+        private async Task Enrollment(int studentId, int subjectId)
         {
             var enrollment = new
             {
@@ -88,26 +104,12 @@ namespace POST_SIMULACION
             var json = JsonConvert.SerializeObject(enrollment);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await client.PostAsync("http://localhost:3000/enrollments", content);
-
-            if (response.IsSuccessStatusCode)
-            {
-                Console.WriteLine($"Successfully enrolled student {studentId} in subject {subjectId}");
-            }
-            else
-            {
-                Console.WriteLine($"Failed to enroll student {studentId} in subject {subjectId}: {response.ReasonPhrase}");
-            }
+            await client.PostAsync("http://localhost:3000/enrollments", content);
         }
 
         protected override void OnStop()
         {
             timer.Stop();
         }
-    }
-
-    public class CheckEnrollmentResponse
-    {
-        public bool IsEnrolled { get; set; }
     }
 }
